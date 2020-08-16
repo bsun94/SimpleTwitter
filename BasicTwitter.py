@@ -11,18 +11,13 @@ from datetime import datetime
 import os
 import pickle as pk
 from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 
 class View(object):
     
     def displayTweet(self, root, tweet, username, date):
-        tk.Label(root, text=username, font='Arial 12 bold', justify='left', bg='#1DA1F2').pack(anchor='w', padx=12)
+        tk.Label(root, text=username, font='Arial 12 bold', justify='left', bg='white').pack(anchor='w', padx=12)
         tk.Label(root, text=date, font='Arial 8 italic', justify='left', bg='#1DA1F2').pack(anchor='w', padx=12)
         tk.Label(root, text=tweet, font='Arial 11', justify='left', bg='#1DA1F2').pack(anchor='w', padx=12, pady=5)
-        
-        # eventually will work on if statement checking for children
-        # tk.Button(root, text='See Conversation', state='disabled', height=1, width=15).pack(anchor='w', padx=12, pady=5)
     
     def getUserTweets(self, root, msg):
         msg.set('Enter tweet here...')
@@ -30,13 +25,19 @@ class View(object):
         entry_bar.bind('<Button-1>', lambda event: entry_bar.delete(0, 'end'))
         entry_bar.pack(pady=20)
     
-
+    def loginEntry(self, root, cred, prompt):
+        cred.set(prompt)
+        entry_bar = tk.Entry(root, textvariable=cred, font='Arial 12', width=40)
+        entry_bar.bind('<Button-1>', lambda event: entry_bar.delete(0, 'end'))
+        entry_bar.pack(anchor='s', pady=15)
+    
 
 class Model(object):
     
     os.chdir(os.getcwd())
     SPREADSHEET_ID = '1sLf9UMIP7MdWbcuS9qh3blkpsPBJzkIfZSlTuQ0Ltqg'
     TWEETS_RANGE = 'Tweets'
+    USERS_RANGE = 'Logins'
     TWEET_ID = 'Parameters!B1'
         
     with open('token.pickle', 'rb') as creds:
@@ -44,24 +45,31 @@ class Model(object):
     
     SERVICE = build('sheets', 'v4', credentials=CREDENTIALS)
     
-    def append(self, tweet_list):
-        tweetID  = tweet_list[0]
-        tweet    = tweet_list[1]
-        username = tweet_list[2]
-        time     = tweet_list[3]
-        children = tweet_list[4]
+    def append(self, input_list):
+        if len(input_list) > 2:
+            tweetID  = input_list[0]
+            tweet    = input_list[1]
+            username = input_list[2]
+            time     = input_list[3]
+            children = input_list[4]
         
-        values = [[tweetID], [tweet], [username], [time], [children]]
+            values       = [[tweetID], [tweet], [username], [time], [children]]
+            append_range = self.TWEETS_RANGE
+        else:
+            username = input_list[0]
+            password = input_list[1]
+            
+            values       = [[username], [password]]
+            append_range = self.USERS_RANGE
+        
         body = {
             'majorDimension': 'COLUMNS',
             'values': values
             }
-        result = self.SERVICE.spreadsheets().values().append(spreadsheetId=self.SPREADSHEET_ID,
-                                                             range=self.TWEETS_RANGE,
-                                                             valueInputOption='USER_ENTERED',
-                                                             body=body).execute()
-        updates = result.get('updates').get('updatedCells')
-        print(f'{updates} cells updated.')
+        self.SERVICE.spreadsheets().values().append(spreadsheetId=self.SPREADSHEET_ID,
+                                                    range=append_range,
+                                                    valueInputOption='USER_ENTERED',
+                                                    body=body).execute()
     
     def download(self, num_tweets):
         result = self.SERVICE.spreadsheets().values().batchGet(spreadsheetId=self.SPREADSHEET_ID,
@@ -72,6 +80,20 @@ class Model(object):
     def getTweetID(self):
         result = self.SERVICE.spreadsheets().values().get(spreadsheetId=self.SPREADSHEET_ID,
                                                           range=self.TWEET_ID).execute()
+        return result['values'][0][0]
+    
+    def getPassword(self, username):
+        value_body = {
+            'values': [[username]]
+            }
+        
+        self.SERVICE.spreadsheets().values().update(spreadsheetId=self.SPREADSHEET_ID,
+                                                    range=self.USERS_RANGE+'!E1',
+                                                    valueInputOption='USER_ENTERED',
+                                                    body=value_body).execute()
+        
+        result = self.SERVICE.spreadsheets().values().get(spreadsheetId=self.SPREADSHEET_ID,
+                                                          range=self.USERS_RANGE+'!F1').execute()
         return result['values'][0][0]
     
     def sortDB(self):
@@ -101,7 +123,7 @@ class Model(object):
             body=body).execute()
 
 # model = Model()
-# model.download()
+# model.getPassword('amir')
 
 class Controller(object):
     
@@ -119,12 +141,19 @@ class Controller(object):
     
     def __init__(self):
         self.tweet_msg = tk.StringVar()
-        self.username = 'bsun94'
+        self.username = tk.StringVar()
+    
+    def clearPage(self, widget_type=None):
+        if not widget_type:
+            for widget in self.ROOT.winfo_children():
+                widget.destroy()
+        else:
+            for widget in self.ROOT.winfo_children():
+                if widget.winfo_class() == widget_type:
+                    widget.destroy()
     
     def refreshMainPage(self):
-        for widget in self.ROOT.children.values():
-            if widget.winfo_class() == 'Label':
-                widget.pack_forget()
+        self.clearPage('Label')
         
         tweets = self.model.download(5)
         
@@ -139,7 +168,7 @@ class Controller(object):
                   command=lambda: [self.model.append([
                       self.model.getTweetID(), 
                       self.tweet_msg.get(), 
-                      self.username, 
+                      self.username.get(), 
                       datetime.now().strftime('%Y/%m/%d %H:%M'), 
                       'None'
                       ]),
@@ -152,13 +181,52 @@ class Controller(object):
         
         for _, tweet, user, date, _1 in tweets:
             self.view.displayTweet(self.ROOT, tweet, user, date)
+            # work on replies??
+            # tk.Button(root, text='See Conversation', state='disabled', height=1, width=15).pack(anchor='w', padx=12, pady=5)
         
         self.ROOT.after(60000, self.refreshMainPage)
     
-    def runTwitter(self):
-        self.mainPage()
+    def checkLogin(self, password):
+        pw = self.model.getPassword(self.username.get())
+        
+        if password == pw:
+            self.clearPage()
+            self.mainPage()
+        elif pw == '#N/A':
+            tk.messagebox.showerror('Login Error', 'Username not recognized; please double-check entry, or create new account.')
+        else:
+            tk.messagebox.showerror('Login Error', 'Incorrect password! Please try again.')
+    
+    def checkRegistry(self, username, password):
+        pw = self.model.getPassword(username)
+        
+        if pw != '#N/A':
+            tk.messagebox.showerror('Registration Error', 'Username already exists! Please try logging in without registration.')
+        else:
+            self.model.append([username, password])
+            self.clearPage()
+            self.mainPage()
+    
+    def startup(self):
+        password = tk.StringVar()
+        logo = tk.PhotoImage(file="logo.gif").subsample(2, 2)
+        tk.Label(self.ROOT, image=logo, borderwidth=0, highlightthickness=0).pack()
+        self.view.loginEntry(self.ROOT, self.username, 'Enter username here...')
+        self.view.loginEntry(self.ROOT, password, 'Enter password here...')
+        
+        tk.Button(self.ROOT, wraplength=150,
+                  text='Register and login with above credentials',
+                  command=lambda: self.checkRegistry(self.username.get(), password.get()),
+                  height=2,
+                  width=25).pack(pady=2)
+        
+        tk.Button(self.ROOT, wraplength=150,
+                  text='Login to above account',
+                  command=lambda: self.checkLogin(password.get()),
+                  height=2,
+                  width=25).pack(pady=2)
         
         self.ROOT.mainloop()
 
 control = Controller()
-control.runTwitter()
+control.startup()
