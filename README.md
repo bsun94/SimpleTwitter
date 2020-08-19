@@ -4,7 +4,7 @@ ______________________
 
 **Dependencies - please make sure you have the following python packages installed:**
 - Regular packages: tkinter, datetime, os, pickle
-- Special packages: googleapiclient
+- Special packages: hashlib, googleapiclient
 
 Please refer to *https://developers.google.com/sheets/api* to set up Google API, which is needed by this functionality to use a Google Sheets document as its database.
 

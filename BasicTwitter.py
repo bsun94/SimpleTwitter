@@ -9,13 +9,16 @@ A fundamental version of Twitter using tkinter for UI and Google API for back-en
 import tkinter as tk
 from datetime import datetime
 import os
+import sys
 import pickle as pk
+import hashlib as hs
 from googleapiclient.discovery import build
 
+# TODO: put MVC in diff files
 class View(object):
     
     def displayTweet(self, root, tweet, username, date):
-        tk.Label(root, text=username, font='Arial 12 bold', justify='left', bg='white').pack(anchor='w', padx=12)
+        tk.Label(root, text=username, font='Arial 12 bold', justify='left', fg='#1DA1F2', bg='white').pack(anchor='w', padx=12)
         tk.Label(root, text=date, font='Arial 8 italic', justify='left', bg='#1DA1F2').pack(anchor='w', padx=12)
         tk.Label(root, text=tweet, font='Arial 11', justify='left', bg='#1DA1F2').pack(anchor='w', padx=12, pady=5)
     
@@ -37,13 +40,17 @@ class Model(object):
     os.chdir(os.getcwd())
     SPREADSHEET_ID = '1sLf9UMIP7MdWbcuS9qh3blkpsPBJzkIfZSlTuQ0Ltqg'
     TWEETS_RANGE = 'Tweets'
+    QUERY_RANGE = 'Queries'
     USERS_RANGE = 'Logins'
     TWEET_ID = 'Parameters!B1'
         
     with open('token.pickle', 'rb') as creds:
         CREDENTIALS = pk.load(creds)
     
-    SERVICE = build('sheets', 'v4', credentials=CREDENTIALS)
+    try:
+        SERVICE = build('sheets', 'v4', credentials=CREDENTIALS)
+    except:
+        sys.exit('Either an internet connection or Google servers is unavailable.')
     
     def append(self, input_list):
         if len(input_list) > 2:
@@ -66,17 +73,38 @@ class Model(object):
             'majorDimension': 'COLUMNS',
             'values': values
             }
+        
         self.SERVICE.spreadsheets().values().append(spreadsheetId=self.SPREADSHEET_ID,
                                                     range=append_range,
                                                     valueInputOption='USER_ENTERED',
                                                     body=body).execute()
     
-    def download(self, num_tweets):
+    def download(self):
         result = self.SERVICE.spreadsheets().values().batchGet(spreadsheetId=self.SPREADSHEET_ID,
-                                                          ranges=self.TWEETS_RANGE).execute()
+                                                               ranges=self.QUERY_RANGE).execute()
         ranges = result.get('valueRanges', [])
-        return ranges[0]['values'][1:num_tweets + 1]
+        return ranges[0]['values'][1:]
     
+    def DBclear(self, clear_range=QUERY_RANGE+'!A1'):
+        self.SERVICE.spreadsheets().values().clear(spreadsheetId=self.SPREADSHEET_ID,
+                                                    range=clear_range).execute()
+    
+    def DBquery(self, num_tweets, tweet_ID=None):
+        if not tweet_ID:
+            query = f'=query(Tweets!A:E, "select * where E = \'None\' order by D desc limit {num_tweets}")'
+        else:
+            query = f'=query(Tweets!A:E, "select * where A = {tweet_ID} or E = \'{tweet_ID}\' order by D asc")'
+        
+        body = {
+            'majorDimension': 'COLUMNS',
+            'values': [[query]]
+            }
+        append_range = self.QUERY_RANGE + '!A1'
+        self.SERVICE.spreadsheets().values().append(spreadsheetId=self.SPREADSHEET_ID,
+                                                    range=append_range,
+                                                    valueInputOption='USER_ENTERED',
+                                                    body=body).execute()
+        
     def getTweetID(self):
         result = self.SERVICE.spreadsheets().values().get(spreadsheetId=self.SPREADSHEET_ID,
                                                           range=self.TWEET_ID).execute()
@@ -106,7 +134,7 @@ class Model(object):
                 },
             'sortSpecs': [
                 {
-                'dimensionIndex': 0,
+                'dimensionIndex': 3,
                 'sortOrder': 'DESCENDING'
                 }
                 ]
@@ -123,7 +151,8 @@ class Model(object):
             body=body).execute()
 
 # model = Model()
-# model.getPassword('amir')
+# model.DBclear()
+# model.DBquery(10)
 
 class Controller(object):
     
@@ -152,15 +181,55 @@ class Controller(object):
                 if widget.winfo_class() == widget_type:
                     widget.destroy()
     
-    def refreshMainPage(self):
+    def repliesPage(self, tweet_ID):
+        self.clearPage()
+        
+        self.view.getUserTweets(self.ROOT, self.tweet_msg)
+        tk.Button(self.ROOT, text='Tweet!', 
+                  command=lambda: [self.model.append([
+                      self.model.getTweetID(), 
+                      self.tweet_msg.get(), 
+                      self.username.get(), 
+                      datetime.now().strftime('%Y/%m/%d %H:%M'), 
+                      tweet_ID
+                      ]),
+                      self.model.sortDB(),
+                      self.refreshPage(tweet_ID)
+                      ],
+                  height=1,
+                  width=15).pack(pady=2)
+        
+        tk.Button(self.ROOT, text='Return!', 
+                  command=lambda: [self.clearPage(),
+                                   self.mainPage()],
+                  height=1,
+                  width=15).pack(pady=2)
+        
+        self.model.DBclear()
+        self.model.DBquery(None, tweet_ID=tweet_ID)
+        tweets = self.model.download()
+        
+        for _, tweet, user, date, _1 in tweets:
+            self.view.displayTweet(self.ROOT, tweet, user, date)
+        
+        self.ROOT.after(60000, self.refreshPage, tweet_ID)
+    
+    def refreshPage(self, tweet_ID):
         self.clearPage('Label')
         
-        tweets = self.model.download(5)
+        if not tweet_ID:
+            for widget in self.ROOT.winfo_children():
+                if widget.winfo_class() == 'Button' and widget.cget('text') != 'Tweet!':
+                    widget.destroy()
+        
+        self.model.DBclear()
+        self.model.DBquery(5, tweet_ID)
+        tweets = self.model.download()
         
         for _, tweet, user, date, _1 in tweets:
             self.view.displayTweet(self.ROOT, tweet, user, date)
             
-        self.ROOT.after(60000, self.refreshMainPage)
+        self.ROOT.after(60000, self.refreshPage, tweet_ID)
     
     def mainPage(self):
         self.view.getUserTweets(self.ROOT, self.tweet_msg)
@@ -172,24 +241,31 @@ class Controller(object):
                       datetime.now().strftime('%Y/%m/%d %H:%M'), 
                       'None'
                       ]),
-                      self.model.sortDB()
+                      self.model.sortDB(),
+                      self.refreshPage(None)
                       ],
                   height=2,
                   width=15).pack(pady=5)
         
-        tweets = self.model.download(5)
+        self.model.DBclear()
+        # make num tweets a constant
+        self.model.DBquery(5)
+        tweets = self.model.download()
         
-        for _, tweet, user, date, _1 in tweets:
+        for t_id, tweet, user, date, _ in tweets:
             self.view.displayTweet(self.ROOT, tweet, user, date)
-            # work on replies??
-            # tk.Button(root, text='See Conversation', state='disabled', height=1, width=15).pack(anchor='w', padx=12, pady=5)
+            tk.Button(self.ROOT, text='See Conversation',
+                      command=lambda: self.repliesPage(t_id),
+                      height=1,
+                      width=15).pack(anchor='w', padx=12, pady=5)
         
-        self.ROOT.after(60000, self.refreshMainPage)
+        self.ROOT.after(60000, self.refreshPage, None)
     
     def checkLogin(self, password):
         pw = self.model.getPassword(self.username.get())
+        hash_pw = hs.sha3_256(str.encode(password)).hexdigest()
         
-        if password == pw:
+        if hash_pw == pw:
             self.clearPage()
             self.mainPage()
         elif pw == '#N/A':
@@ -199,11 +275,12 @@ class Controller(object):
     
     def checkRegistry(self, username, password):
         pw = self.model.getPassword(username)
+        hash_pw = hs.sha3_256(str.encode(password)).hexdigest()
         
         if pw != '#N/A':
             tk.messagebox.showerror('Registration Error', 'Username already exists! Please try logging in without registration.')
         else:
-            self.model.append([username, password])
+            self.model.append([username, hash_pw])
             self.clearPage()
             self.mainPage()
     
