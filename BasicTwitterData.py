@@ -10,6 +10,7 @@ import sys
 import json
 import ibm_db as ibm
 import hashlib as hs
+from datetime import datetime
 
 class userModel():
     
@@ -28,6 +29,33 @@ class userModel():
         else:
             tk.messagebox.showerror('User Info Error', 'Please enter a password!')
             sys.exit()
+
+class tweetModel():
+    
+    def __init__(self, tweet, username, date, parent_id):
+        if not tweet:
+            tk.messagebox.showerror('Tweet Error', 'Empty Tweet!')
+            sys.exit()
+        else:
+            self.tweet = tweet
+        
+        if not username:
+            tk.messagebox.showerror('Tweet Error', 'Username not passed for database handling!')
+            sys.exit()
+        else:
+            self.username = username
+        
+        if not isinstance(date, datetime):
+            tk.messagebox.showerror('Tweet Error', 'Time of tweet creation not indicated!')
+            sys.exit()
+        else:
+            self.date = date.strftime('%Y-%m-%d-%H.%M.%S')
+        
+        if parent_id and not isinstance(parent_id, int):
+            tk.messagebox.showerror('Tweet Error', 'Parent ID of the message either has to be empty, or an int!')
+            sys.exit()
+        else:
+            self.parent_id = parent_id
 
 class DBHandler():
     
@@ -56,7 +84,7 @@ class DBHandler():
     def connect(self):
         try:
             conn = ibm.connect(self.dsn, "", "")
-            print('Connected to database:', self.db, ' as user:', self.login, ' on host:', self.hostname)
+            # print('Connected to database:', self.db, ' as user:', self.login, ' on host:', self.hostname)
             return conn
         except:
             print('Unable to connect:', ibm.conn_errormsg())
@@ -64,11 +92,11 @@ class DBHandler():
     def close(self, conn):
         try:
             ibm.close(conn)
-            print('Connection closed.')
+            # print('Connection closed.')
         except:
             print('Unable to close connection, please try again.')
     
-    def addUser(self, username, password):
+    def addUser(self, username, password):  # replaces append for users
         try:
             user = userModel(username, password)
         except:
@@ -83,57 +111,83 @@ class DBHandler():
                 
         self.close(conn)
     
-    # def append(self, input_list):
-    #     return None
-    
-    # def download(self):
-    #     result = self.SERVICE.spreadsheets().values().batchGet(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                            ranges=self.QUERY_RANGE).execute()
-    #     ranges = result.get('valueRanges', [])
-    #     return ranges[0]['values'][1:]
-    
-    # def DBclear(self, clear_range=QUERY_RANGE+'!A1'):
-    #     self.SERVICE.spreadsheets().values().clear(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                 range=clear_range).execute()
-    
-    # def DBquery(self, num_tweets, tweet_ID=None):
-    #     if not tweet_ID:
-    #         query = f'=query(Tweets!A:E, "select * where E = \'None\' order by D desc limit {num_tweets}")'
-    #     else:
-    #         query = f'=query(Tweets!A:E, "select * where A = {tweet_ID} or E = \'{tweet_ID}\' order by D asc")'
+    def addTweet(self, tweet, username, date, parent_id=None):  # replaces append for tweets
+        try:
+            tweet = tweetModel(tweet, username, date, parent_id)
+        except:
+            return
         
-    #     body = {
-    #         'majorDimension': 'COLUMNS',
-    #         'values': [[query]]
-    #         }
-    #     append_range = self.QUERY_RANGE + '!A1'
-    #     self.SERVICE.spreadsheets().values().append(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                 range=append_range,
-    #                                                 valueInputOption='USER_ENTERED',
-    #                                                 body=body).execute()
+        tweet_id = self.getTweetID() + 1
         
-    # def getTweetID(self):
-    #     result = self.SERVICE.spreadsheets().values().get(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                       range=self.TWEET_ID).execute()
-    #     return result['values'][0][0]
+        conn = self.connect()
+        
+        # Python None gets converted to a string automatically when passed to IBM DB2; have to make NULL explicit in query statement
+        if tweet.parent_id:
+            query = f'''insert into TWEETS ("TWEET_ID","TWEET","USERNAME","DATE","PARENT_ID")\
+                    values ({tweet_id}, '{tweet.tweet}', '{tweet.username}', '{tweet.date}', {tweet.parent_id});'''
+        else:
+            query = f'''insert into TWEETS ("TWEET_ID","TWEET","USERNAME","DATE","PARENT_ID")\
+                    values ({tweet_id}, '{tweet.tweet}', '{tweet.username}', '{tweet.date}', NULL);'''
+        
+        ibm.exec_immediate(conn, query)
+                
+        self.close(conn)
     
-    # def getPassword(self, username):
-    #     value_body = {
-    #         'values': [[username]]
-    #         }
+    def getTweetID(self):
+        conn = self.connect()
         
-    #     self.SERVICE.spreadsheets().values().update(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                 range=self.USERS_RANGE+'!E1',
-    #                                                 valueInputOption='USER_ENTERED',
-    #                                                 body=value_body).execute()
+        query = f'''select max("TWEET_ID") from TWEETS;'''
+        run = ibm.exec_immediate(conn, query)
+        tweet_id = ibm.fetch_tuple(run)
         
-    #     result = self.SERVICE.spreadsheets().values().get(spreadsheetId=self.SPREADSHEET_ID,
-    #                                                       range=self.USERS_RANGE+'!F1').execute()
-    #     return result['values'][0][0]
-
-db = DBHandler()
-db.addUser('bsun94', 'Helga')
-# conn = db.connect()
-# query=''
-# ibm.exec_immediate(conn, query)
-# db.close(conn)
+        self.close(conn)
+        
+        return tweet_id[0]
+    
+    def getPassword(self, username, password):
+        try:
+            user = userModel(username, password)
+        except:
+            return
+        
+        conn = self.connect()
+        
+        query = f'''select "PASSWORD" from LOGINS where "USERNAME" = '{user.username}';'''
+        try:
+            run = ibm.exec_immediate(conn, query)
+            pw = ibm.fetch_tuple(run)[0]
+        except:
+            return 'username error'
+        
+        self.close(conn)
+        
+        if pw != user.password:
+            return 'password error'
+        else:
+            return 'verified'        
+    
+    def DBquery(self, num_tweets=None, tweet_ID=None):
+        conn = self.connect()
+        
+        if not num_tweets and not tweet_ID:
+            tk.messagebox.showerror('Query Error', 'Please supply one of num_tweets or tweet_ID - don\'t leave both as None!')
+            sys.exit()
+        elif tweet_ID and not num_tweets:
+            query = f'''select * from TWEETS WHERE "TWEET_ID" = {tweet_ID} OR "PARENT_ID" = {tweet_ID} ORDER BY "DATE";'''
+        elif num_tweets and not tweet_ID:
+            query = f'''select * from TWEETS WHERE "PARENT_ID" ISNULL ORDER BY "DATE" DESC LIMIT '{num_tweets}';'''
+        else:
+            tk.messagebox.showerror('Query Error', 'Please supply ONE OF num_tweets or tweet_ID!')
+            sys.exit()
+        
+        run = ibm.exec_immediate(conn, query)
+        tup = ibm.fetch_tuple(run)
+        
+        results_tup = []
+        while tup:
+            results_tup.append(tup)
+            tup = ibm.fetch_tuple(run)
+        
+        self.close(conn)
+        
+        return results_tup

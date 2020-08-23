@@ -9,13 +9,16 @@ A fundamental version of Twitter using tkinter for UI and Google API for back-en
 import tkinter as tk
 from datetime import datetime
 import hashlib as hs
+import os
+
+os.chdir(os.getcwd())
+
+import BasicTwitterData as dt
+import BasicTwitterView as vw
 
 class Controller(object):
         
     NUM_TWEETS = 10
-    
-    model = Model()
-    view = View()
     
     def __init__(self):
         
@@ -38,6 +41,9 @@ class Controller(object):
         
         self.tweet_msg = tk.StringVar()
         self.username = tk.StringVar()
+        
+        self.db = dt.DBHandler()
+        self.view = vw.View()
     
     def onFrameConfigure(self, event):
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
@@ -61,14 +67,12 @@ class Controller(object):
         
         self.view.getUserTweets(self.frame, self.tweet_msg)
         tk.Button(self.frame, text='Tweet!', 
-                  command=lambda: [self.model.append([
-                      self.model.getTweetID(), 
+                  command=lambda: [self.db.addTweet(
                       self.tweet_msg.get(), 
                       self.username.get(), 
-                      datetime.now().strftime('%Y/%m/%d %H:%M'), 
+                      datetime.now(), 
                       tweet_ID
-                      ]),
-                      self.model.sortDB(),
+                      ),
                       self.frame.after_cancel(repliesAfter),
                       self.repliesPage(tweet_ID)
                       ],
@@ -81,12 +85,10 @@ class Controller(object):
                   height=1,
                   width=15).pack(pady=2)
         
-        self.model.DBclear()
-        self.model.DBquery(None, tweet_ID=tweet_ID)
-        tweets = self.model.download()
+        tweets = self.db.DBquery(tweet_ID=tweet_ID)
         
         for _, tweet, user, date, _1 in tweets:
-            self.view.displayTweet(self.frame, tweet, user, date)
+            self.view.displayTweet(self.frame, tweet, user, date.strftime('%Y/%m/%d %H:%M'))
         
         repliesAfter = self.frame.after(60000, lambda: self.repliesPage(tweet_ID))
     
@@ -96,26 +98,22 @@ class Controller(object):
         
         self.view.getUserTweets(self.frame, self.tweet_msg)
         tk.Button(self.frame, text='Tweet!', 
-                  command=lambda: [self.model.append([
-                      self.model.getTweetID(), 
+                  command=lambda: [self.db.addTweet( 
                       self.tweet_msg.get(), 
                       self.username.get(), 
-                      datetime.now().strftime('%Y/%m/%d %H:%M'), 
+                      datetime.now(), 
                       'None'
-                      ]),
+                      ),
                       self.frame.after_cancel(mainAfter),
                       self.mainPage()
                       ],
                   height=2,
                   width=15).pack(pady=5)
         
-        self.model.DBclear()
-        # make num tweets a constant
-        self.model.DBquery(self.NUM_TWEETS)
-        tweets = self.model.download()
+        tweets = self.db.DBquery(num_tweets=self.NUM_TWEETS)
         
         for t_id, tweet, user, date, _ in tweets:
-            self.view.displayTweet(self.frame, tweet, user, date)
+            self.view.displayTweet(self.frame, tweet, user, date.strftime('%Y/%m/%d %H:%M'))
             tk.Button(self.frame, text='See Conversation',
                       command=lambda t_id=t_id: [self.frame.after_cancel(mainAfter),
                                                  self.repliesPage(t_id)],
@@ -124,32 +122,30 @@ class Controller(object):
         
         mainAfter = self.frame.after(60000, lambda: self.mainPage())
     
-    def checkLogin(self, password):
-        pw = self.model.getPassword(self.username.get())
-        hash_pw = hs.sha3_256(str.encode(password)).hexdigest()
+    def checkLogin(self, username, password):
+        pw = self.db.getPassword(username, password)
         
-        if hash_pw == pw:
+        if pw == 'verified':
             self.mainPage()
-        elif pw == '#N/A':
+        elif pw == 'username error':
             tk.messagebox.showerror('Login Error', 'Username not recognized; please double-check entry, or create new account.')
-        else:
+        elif pw == 'password error':
             tk.messagebox.showerror('Login Error', 'Incorrect password! Please try again.')
     
     def checkRegistry(self, username, password):
-        pw = self.model.getPassword(username)
-        hash_pw = hs.sha3_256(str.encode(password)).hexdigest()
+        pw = self.db.getPassword(username, password)
         
-        if pw != '#N/A':
+        if pw != 'username error':
             tk.messagebox.showerror('Registration Error', 'Username already exists! Please try logging in without registration.')
         else:
-            self.model.append([username, hash_pw])
+            self.db.addUser(username, password)
             self.mainPage()
     
     def startup(self):
         password = tk.StringVar()
-        logo = tk.PhotoImage(file="logo.gif").subsample(2, 2)
+        logo = tk.PhotoImage(file="logo.gif")
         tk.Label(self.frame, image=logo, borderwidth=0, highlightthickness=0).pack()
-        self.view.loginEntry(self.frame, self.username, 'Enter username here...')
+        self.view.loginEntry(self.frame, self.username, 'Enter username here (limit 50 characters)...')
         self.view.loginEntry(self.frame, password, 'Enter password here...')
         
         tk.Button(self.frame, wraplength=150,
@@ -160,7 +156,7 @@ class Controller(object):
         
         tk.Button(self.frame, wraplength=150,
                   text='Login to above account',
-                  command=lambda: self.checkLogin(password.get()),
+                  command=lambda: self.checkLogin(self.username.get(), password.get()),
                   height=2,
                   width=25).pack(pady=2)
         
