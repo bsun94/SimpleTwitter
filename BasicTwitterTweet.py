@@ -4,7 +4,7 @@ Created on Tue Aug 25 21:31:04 2020
 Contains the tweet model class
 """
 
-import datetime as datetime
+from datetime import datetime
 import tkinter as tk
 import sys
 
@@ -20,6 +20,9 @@ class tweetModel():
         if not tweet:
             tk.messagebox.showerror('Tweet Error', 'Empty Tweet!')
             sys.exit()
+        elif tweet.find("'") != -1:
+            tweet = tweet.replace("'", "''")
+            self.tweet = tweet
         else:
             self.tweet = tweet
         
