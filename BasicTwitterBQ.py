@@ -95,7 +95,7 @@ class Controller(object):
                   height=1,
                   width=15).pack(pady=2)
         
-        tweets = self.db.postTweet(tweet_ID=tweet_ID)
+        tweets = self.db.getTweet(tweet_ID=tweet_ID)
         
         for _, tweet, user, date, _1 in tweets:
             self.view.displayTweet(tweet, user, date.strftime('%Y/%m/%d %H:%M'))
@@ -118,8 +118,7 @@ class Controller(object):
                   command=lambda: [self.db.addTweet( 
                       self.tweet_msg.get(), 
                       self.username.get(), 
-                      datetime.now(), 
-                      'None'
+                      datetime.now(),
                       ),
                       self.frame.after_cancel(mainAfter),
                       self.mainPage()
@@ -127,7 +126,7 @@ class Controller(object):
                   height=2,
                   width=15).pack(pady=5)
         
-        tweets = self.db.postTweet(num_tweets=self.NUM_TWEETS)
+        tweets = self.db.getTweet(num_tweets=self.NUM_TWEETS)
         
         for t_id, tweet, user, date, _ in tweets:
             self.view.displayTweet(tweet, user, date.strftime('%Y/%m/%d %H:%M'))

@@ -10,64 +10,12 @@ import sys
 import json
 import ibm_db as ibm
 import hashlib as hs
-from datetime import datetime
 
-class userModel():
-    
-    def __init__(self, username, password):
-        """
-        Takes in username and password as parameters. Check is username is not empty, and if its len does not exceed 50 char,
-        which is the limit in the db table.
-        Password, if not None, is hashed here before being passed to the db.
+# For importing custom model and view modules - please ensure you've saved all these files in the same directory!
+os.chdir(os.getcwd())
 
-        """
-        if len(username) > 50:
-            tk.messagebox.showerror('User Info Error', 'Username too long! Please limit usernames to 50 characters or below.')
-            sys.exit()
-        if not username:
-            tk.messagebox.showerror('User Info Error', 'Please enter a username!')
-            sys.exit()
-        else:
-            self.username = username
-        
-        if password:
-            self.password = hs.sha3_256(str.encode(password)).hexdigest()
-        else:
-            tk.messagebox.showerror('User Info Error', 'Please enter a password!')
-            sys.exit()
-
-class tweetModel():
-    
-    def __init__(self, tweet, username, date, parent_id):
-        """
-        Validates tweet msgs, username, date and parent tweet id before passing it to db. Checks all parameters for blanks/Nones.
-        Specifically, ensure that the date parameter is indeed a datetime object, and that parent_id is either None (for parent
-        tweets) or an int for child tweets.
-
-        """
-        if not tweet:
-            tk.messagebox.showerror('Tweet Error', 'Empty Tweet!')
-            sys.exit()
-        else:
-            self.tweet = tweet
-        
-        if not username:
-            tk.messagebox.showerror('Tweet Error', 'Username not passed for database handling!')
-            sys.exit()
-        else:
-            self.username = username
-        
-        if not isinstance(date, datetime):
-            tk.messagebox.showerror('Tweet Error', 'Time of tweet creation not indicated!')
-            sys.exit()
-        else:
-            self.date = date.strftime('%Y-%m-%d-%H.%M.%S')
-        
-        if parent_id and not isinstance(parent_id, int):
-            tk.messagebox.showerror('Tweet Error', 'Parent ID of the message either has to be empty, or an int!')
-            sys.exit()
-        else:
-            self.parent_id = parent_id
+import BasicTwitterModel as md
+import BasicTwitterTweet as tw
 
 class DBHandler():
     
@@ -127,7 +75,7 @@ class DBHandler():
 
         """
         try:
-            user = userModel(username, password)
+            user = md.userModel(username, password)
         except:
             return
         
@@ -140,46 +88,24 @@ class DBHandler():
                 
         self.close(conn)
     
-    def addTweet(self, tweet, username, date, parent_id=None):
+    def addTweet(self, tweet, username, date, parent_id='NULL'):
         """
         Validates tweet data using tweetModel, before storing tweet message info in the TWEETS table on IBM db.
 
         """
         try:
-            tweet = tweetModel(tweet, username, date, parent_id)
+            tweet = tw.tweetModel(tweet, username, date, parent_id)
         except:
             return
         
-        tweet_id = self.getTweetID() + 1
-        
         conn = self.connect()
         
-        # Python None gets converted to a string automatically when passed to IBM DB2; have to make NULL explicit in query statement
-        if tweet.parent_id:
-            query = f'''insert into TWEETS ("TWEET_ID","TWEET","USERNAME","DATE","PARENT_ID")\
-                    values ({tweet_id}, '{tweet.tweet}', '{tweet.username}', '{tweet.date}', {tweet.parent_id});'''
-        else:
-            query = f'''insert into TWEETS ("TWEET_ID","TWEET","USERNAME","DATE","PARENT_ID")\
-                    values ({tweet_id}, '{tweet.tweet}', '{tweet.username}', '{tweet.date}', NULL);'''
+        query = f'''insert into TWEETS ("TWEET","USERNAME","DATE","PARENT_ID")\
+                values ('{tweet.tweet}', '{tweet.username}', '{tweet.date}', {tweet.parent_id});'''
         
         ibm.exec_immediate(conn, query)
                 
         self.close(conn)
-    
-    def getTweetID(self):
-        """
-        Used to assign IDs to new tweets; grabs the max ID int in the TWEETS table, and adds 1 to that.
-
-        """
-        conn = self.connect()
-        
-        query = f'''select max("TWEET_ID") from TWEETS;'''
-        run = ibm.exec_immediate(conn, query)
-        tweet_id = ibm.fetch_tuple(run)
-        
-        self.close(conn)
-        
-        return tweet_id[0]
     
     def getPassword(self, username, password):
         """
@@ -188,7 +114,7 @@ class DBHandler():
         Can also be used to see if a username already exists or not in the db.
 
         """
-        pw = hs.sha3_256(str.encode(password)).hexdigest()
+        password = hs.sha3_256(str.encode(password)).hexdigest()
         
         conn = self.connect()
         
@@ -206,7 +132,7 @@ class DBHandler():
         else:
             return 'verified'        
     
-    def postTweet(self, num_tweets=None, tweet_ID=None):
+    def getTweet(self, num_tweets=None, tweet_ID=None):
         """
         Used to query either all parent tweets or tweets specific to a single conversation chain for the current application.
         Takes in a num_tweets parameters, limiting the number of displayed results (mainly for presentation purposes), and a
@@ -236,3 +162,4 @@ class DBHandler():
         self.close(conn)
         
         return results_tup
+
