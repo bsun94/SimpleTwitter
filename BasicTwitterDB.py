@@ -162,4 +162,33 @@ class DBHandler():
         self.close(conn)
         
         return results_tup
+    
+    def buildDB(self):
+        """
+        Helps user build up their database for the application on IBM upon initial startup. Makes sure user has not created table already beforehand.
 
+        """
+        conn = self.connect()
+        
+        query1 = f'''CREATE TABLE LOGINS
+            (USERNAME VARCHAR(50) NOT NULL PRIMARY KEY
+            ,PASSWORD CLOB(1048576) NOT NULL);'''
+            
+        query2 = f'''CREATE TABLE TWEETS
+            (TWEET_ID INTEGER NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1)
+            ,TWEET CLOB(1048576) NOT NULL
+            ,USERNAME VARCHAR(50) NOT NULL
+            ,DATE TIMESTAMP(12)
+            ,PARENT_ID INTEGER);'''
+        
+        try:
+            ibm.exec_immediate(conn, 'select * from LOGINS;')
+        except:
+            ibm.exec_immediate(conn, query1)
+        
+        try:
+            ibm.exec_immediate(conn, 'select * from TWEETS;')
+        except:
+            ibm.exec_immediate(conn, query2)
+        
+        self.close(conn)

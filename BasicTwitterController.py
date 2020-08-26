@@ -13,7 +13,7 @@ import os
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
 os.chdir(os.getcwd())
 
-import BasicTwitterData as dt
+import BasicTwitterDB as dt
 import BasicTwitterView as vw
 
 class Controller(object):
