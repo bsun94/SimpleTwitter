@@ -11,11 +11,13 @@ import json
 import ibm_db as ibm
 import hashlib as hs
 
+
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
 os.chdir(os.getcwd())
 
 import BasicTwitterModel as md
 import BasicTwitterTweet as tw
+import BasicTwitterEnum as en
 
 class DBHandler():
     
@@ -53,7 +55,6 @@ class DBHandler():
         """
         try:
             conn = ibm.connect(self.dsn, "", "")
-            # print('Connected to database:', self.db, ' as user:', self.login, ' on host:', self.hostname)
             return conn
         except:
             print('Unable to connect:', ibm.conn_errormsg())
@@ -65,7 +66,6 @@ class DBHandler():
         """
         try:
             ibm.close(conn)
-            # print('Connection closed.')
         except:
             print('Unable to close connection, please try again.')
     
@@ -123,14 +123,14 @@ class DBHandler():
             run = ibm.exec_immediate(conn, query)
             pw = ibm.fetch_tuple(run)[0]
         except:
-            return 'username error'
+            return en.States.user_err
         
         self.close(conn)
         
         if pw != password:
-            return 'password error'
+            return en.States.pw_err
         else:
-            return 'verified'        
+            return en.States.verified
     
     def getTweet(self, num_tweets=None, tweet_ID=None):
         """
@@ -165,30 +165,22 @@ class DBHandler():
     
     def buildDB(self):
         """
-        Helps user build up their database for the application on IBM upon initial startup. Makes sure user has not created table already beforehand.
+        Helps user build up their database for the application on IBM upon initial startup.
+        Makes sure user has not created table already beforehand.
 
         """
         conn = self.connect()
         
-        query1 = f'''CREATE TABLE LOGINS
+        query = f'''CREATE TABLE IF NOT EXISTS LOGINS
             (USERNAME VARCHAR(50) NOT NULL PRIMARY KEY
-            ,PASSWORD CLOB(1048576) NOT NULL);'''
-            
-        query2 = f'''CREATE TABLE TWEETS
+            ,PASSWORD CLOB(1048576) NOT NULL);
+            CREATE TABLE IF NOT EXISTS TWEETS
             (TWEET_ID INTEGER NOT NULL PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1)
             ,TWEET CLOB(1048576) NOT NULL
             ,USERNAME VARCHAR(50) NOT NULL
             ,DATE TIMESTAMP(12)
             ,PARENT_ID INTEGER);'''
         
-        try:
-            ibm.exec_immediate(conn, 'select * from LOGINS;')
-        except:
-            ibm.exec_immediate(conn, query1)
-        
-        try:
-            ibm.exec_immediate(conn, 'select * from TWEETS;')
-        except:
-            ibm.exec_immediate(conn, query2)
+        ibm.exec_immediate(conn, query)
         
         self.close(conn)

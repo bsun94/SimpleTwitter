@@ -4,7 +4,7 @@ ______________________
 
 **Dependencies - please make sure you have the following python packages installed:**
 - Regular packages: tkinter, datetime, os, sys, json, pickle
-- Special packages: hashlib, *ibm_db*
+- Special packages: enum, hashlib, *ibm_db*
 
 Between yourself and your friends, someone should sign up for an IBM Cloud account; with a Lite plan, you can get free database access (up to 200MB storage).
 

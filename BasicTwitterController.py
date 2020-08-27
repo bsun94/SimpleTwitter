@@ -7,7 +7,6 @@ A fundamental version of Twitter using tkinter for UI and IBM DB2 for back-end d
 """
 
 import tkinter as tk
-from datetime import datetime
 import os
 
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
@@ -15,6 +14,9 @@ os.chdir(os.getcwd())
 
 import BasicTwitterDB as dt
 import BasicTwitterView as vw
+import BasicTwitterMain as mn
+import BasicTwitterReplies as rep
+import BasicTwitterEnum as en
 
 class Controller(object):
     
@@ -55,6 +57,8 @@ class Controller(object):
         
         self.db = dt.DBHandler()
         self.view = vw.View(self.frame)
+        self.replies = rep.RepliesController(self.frame, self.canvas, self.tweet_msg, self.username)
+        self.main = mn.MainController(self.frame, self.canvas, self.tweet_msg, self.username, self.replies.repliesPage)
     
     def onFrameConfigure(self, event):
         """
@@ -62,81 +66,6 @@ class Controller(object):
         
         """
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
-    
-    def repliesPage(self, tweet_ID):
-        """
-        Displays the conversation chain for a specific parent tweet, as indicated by the tweet_ID parameter.
-        Whenever a user posts a new reply to a parent tweet on this page, that tweet is stored in the db with its
-        parent_id parameter equal to the parent tweet's tweet_id.
-        
-        The page is currently set to refresh every 60sec in its tk .after loop.
-        
-        """
-        self.view.clearPage()            # clear the page to refresh contents
-        self.canvas.yview_moveto('0.0')  # defaults scroll to top of page
-        
-        self.view.getUserTweets(self.tweet_msg)
-        tk.Button(self.frame, text='Tweet!', 
-                  command=lambda: [self.db.addTweet(
-                      self.tweet_msg.get(), 
-                      self.username.get(), 
-                      datetime.now(), 
-                      tweet_ID
-                      ),
-                      self.frame.after_cancel(repliesAfter),
-                      self.repliesPage(tweet_ID)
-                      ],
-                  height=1,
-                  width=15).pack(pady=2)
-        
-        tk.Button(self.frame, text='Return!', 
-                  command=lambda: [self.frame.after_cancel(repliesAfter),
-                                   self.mainPage()],
-                  height=1,
-                  width=15).pack(pady=2)
-        
-        tweets = self.db.getTweet(tweet_ID=tweet_ID)
-        
-        for _, tweet, user, date, _1 in tweets:
-            self.view.displayTweet(tweet, user, date.strftime('%Y/%m/%d %H:%M'))
-        
-        repliesAfter = self.frame.after(60000, lambda: self.repliesPage(tweet_ID))
-    
-    def mainPage(self):
-        """
-        Displays the main parent of the app, with the parent/topic tweets posted by different users.
-        Whenever a user posts a new tweet, a new tweet_id is assigned, which is determined by max(tweet_id) in the db + 1.
-        
-        Like the replies page, this page is set to refresh every 60sec currently.
-
-        """
-        self.view.clearPage()            # clear the page to refresh contents
-        self.canvas.yview_moveto('0.0')  # defaults scroll to top of page
-        
-        self.view.getUserTweets(self.tweet_msg)
-        tk.Button(self.frame, text='Tweet!', 
-                  command=lambda: [self.db.addTweet( 
-                      self.tweet_msg.get(), 
-                      self.username.get(), 
-                      datetime.now(),
-                      ),
-                      self.frame.after_cancel(mainAfter),
-                      self.mainPage()
-                      ],
-                  height=2,
-                  width=15).pack(pady=5)
-        
-        tweets = self.db.getTweet(num_tweets=self.NUM_TWEETS)
-        
-        for t_id, tweet, user, date, _ in tweets:
-            self.view.displayTweet(tweet, user, date.strftime('%Y/%m/%d %H:%M'))
-            tk.Button(self.frame, text='See Conversation',
-                      command=lambda t_id=t_id: [self.frame.after_cancel(mainAfter),
-                                                 self.repliesPage(t_id)],
-                      height=1,
-                      width=15).pack(anchor='w', padx=12, pady=5)
-        
-        mainAfter = self.frame.after(60000, lambda: self.mainPage())
     
     def checkLogin(self, username, password):
         """
@@ -146,11 +75,11 @@ class Controller(object):
         """
         pw = self.db.getPassword(username, password)
         
-        if pw == 'verified':
-            self.mainPage()
-        elif pw == 'username error':
+        if pw == en.States.verified:
+            self.main.mainPage()
+        elif pw == en.States.user_err:
             tk.messagebox.showerror('Login Error', 'Username not recognized; please double-check entry, or create new account.')
-        elif pw == 'password error':
+        elif pw == en.States.pw_err:
             tk.messagebox.showerror('Login Error', 'Incorrect password! Please try again.')
     
     def checkRegistry(self, username, password):
@@ -161,11 +90,11 @@ class Controller(object):
         """
         pw = self.db.getPassword(username, password)
         
-        if pw != 'username error':
+        if pw != en.States.user_err:
             tk.messagebox.showerror('Registration Error', 'Username already exists! Please try logging in without registration.')
         else:
             self.db.addUser(username, password)
-            self.mainPage()
+            self.mn.mainPage()
     
     def startup(self):
         """
