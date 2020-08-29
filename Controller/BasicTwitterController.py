@@ -7,22 +7,21 @@ A fundamental version of Twitter using tkinter for UI and IBM DB2 for back-end d
 """
 
 import tkinter as tk
-import os
+import os, sys
 
-# For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.path.realpath('..') + '\\Controller')
-import BasicTwitterMain as mn
-os.chdir(os.path.realpath('..') + '\\Controller')
-import BasicTwitterReplies as rep
+# For importing custom model and view modules - please ensure you've saved all these files from github in the same folder!
 
-os.chdir(os.path.realpath('..') + '\\Model')
-import BasicTwitterDB as dt
-import BasicTwitterEnum as en
+if os.path.realpath('..') not in sys.path:
+    sys.path.append(os.path.realpath('..'))
 
-os.chdir(os.path.realpath('..') + '\\View')
-import BasicTwitterView as vw
+from Controller import BasicTwitterMain as mn
+from Controller import BasicTwitterReplies as rep
+from Model import BasicTwitterDB as dt
+from Model import BasicTwitterEnum as en
+from View import BasicTwitterView as vw
 
 os.chdir(os.path.realpath('..'))
+
 class Controller(object):
     
     # Controls the number of (most recent) tweets loaded on the GUI

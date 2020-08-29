@@ -12,11 +12,10 @@ import ibm_db as ibm
 import hashlib as hs
 
 
-# For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.path.realpath('..') + '\\Model')
-import BasicTwitterModel as md
-import BasicTwitterTweet as tw
-import BasicTwitterEnum as en
+# For importing custom model modules - please ensure you've kept the below files in their respective folder!
+from Model import BasicTwitterModel as md
+from Model import BasicTwitterTweet as tw
+from Model import BasicTwitterEnum as en
 
 class DBHandler():
     

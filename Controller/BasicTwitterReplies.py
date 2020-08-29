@@ -6,14 +6,10 @@ Contains the replies tweet page portion of the controller
 
 import tkinter as tk
 from datetime import datetime
-import os
 
-# For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.path.realpath('..') + '\\Model')
-import BasicTwitterDB as dt
-
-os.chdir(os.path.realpath('..') + '\\View')
-import BasicTwitterView as vw
+# For importing custom model and view modules - please ensure you've kept the below files in their respective folders!
+from Model import BasicTwitterDB as dt
+from View import BasicTwitterView as vw
 
 class RepliesController(object):
     
