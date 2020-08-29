@@ -10,14 +10,19 @@ import tkinter as tk
 import os
 
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.getcwd())
-
-import BasicTwitterDB as dt
-import BasicTwitterView as vw
+os.chdir(os.path.realpath('..') + '\\Controller')
 import BasicTwitterMain as mn
+os.chdir(os.path.realpath('..') + '\\Controller')
 import BasicTwitterReplies as rep
+
+os.chdir(os.path.realpath('..') + '\\Model')
+import BasicTwitterDB as dt
 import BasicTwitterEnum as en
 
+os.chdir(os.path.realpath('..') + '\\View')
+import BasicTwitterView as vw
+
+os.chdir(os.path.realpath('..'))
 class Controller(object):
     
     # Controls the number of (most recent) tweets loaded on the GUI
@@ -58,7 +63,7 @@ class Controller(object):
         self.db = dt.DBHandler()
         self.view = vw.View(self.frame)
         self.replies = rep.RepliesController(self.frame, self.canvas, self.tweet_msg, self.username)
-        self.main = mn.MainController(self.frame, self.canvas, self.tweet_msg, self.username, self.replies.repliesPage)
+        self.main = mn.MainController(self.frame, self.canvas, self.tweet_msg, self.username)
     
     def onFrameConfigure(self, event):
         """
@@ -76,7 +81,7 @@ class Controller(object):
         pw = self.db.getPassword(username, password)
         
         if pw == en.States.verified:
-            self.main.mainPage()
+            self.main.mainPage(self.replies.repliesPage)
         elif pw == en.States.user_err:
             tk.messagebox.showerror('Login Error', 'Username not recognized; please double-check entry, or create new account.')
         elif pw == en.States.pw_err:
@@ -94,7 +99,7 @@ class Controller(object):
             tk.messagebox.showerror('Registration Error', 'Username already exists! Please try logging in without registration.')
         else:
             self.db.addUser(username, password)
-            self.mn.mainPage()
+            self.main.mainPage(self.replies.repliesPage)
     
     def startup(self):
         """

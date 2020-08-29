@@ -13,8 +13,7 @@ import hashlib as hs
 
 
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.getcwd())
-
+os.chdir(os.path.realpath('..') + '\\Model')
 import BasicTwitterModel as md
 import BasicTwitterTweet as tw
 import BasicTwitterEnum as en

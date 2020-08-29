@@ -1,7 +1,7 @@
 """
 Created on Wed Aug 26 23:05:04 2020
 
-Contains the main tweet page portion of the controller
+Contains the replies tweet page portion of the controller
 """
 
 import tkinter as tk
@@ -9,11 +9,11 @@ from datetime import datetime
 import os
 
 # For importing custom model and view modules - please ensure you've saved all these files in the same directory!
-os.chdir(os.getcwd())
-
+os.chdir(os.path.realpath('..') + '\\Model')
 import BasicTwitterDB as dt
+
+os.chdir(os.path.realpath('..') + '\\View')
 import BasicTwitterView as vw
-import BasicTwitterMain as mn
 
 class RepliesController(object):
     
@@ -34,9 +34,8 @@ class RepliesController(object):
         
         self.db = dt.DBHandler()
         self.view = vw.View(frame)
-        self.main = mn.MainController(frame, canvas, tweet_msg, username, self.repliesPage)
     
-    def repliesPage(self, tweet_ID):
+    def repliesPage(self, mainPage, tweet_ID):
         """
         Displays the conversation chain for a specific parent tweet, as indicated by the tweet_ID parameter.
         Whenever a user posts a new reply to a parent tweet on this page, that tweet is stored in the db with its
@@ -57,14 +56,14 @@ class RepliesController(object):
                       tweet_ID
                       ),
                       self.frame.after_cancel(repliesAfter),
-                      self.repliesPage(tweet_ID)
+                      self.repliesPage(mainPage, tweet_ID)
                       ],
                   height=1,
                   width=15).pack(pady=2)
         
         tk.Button(self.frame, text='Return!', 
                   command=lambda: [self.frame.after_cancel(repliesAfter),
-                                   self.main.mainPage()],
+                                   mainPage(self.repliesPage)],
                   height=1,
                   width=15).pack(pady=2)
         
@@ -73,4 +72,4 @@ class RepliesController(object):
         for _, tweet, user, date, _1 in tweets:
             self.view.displayTweet(tweet, user, date.strftime('%Y/%m/%d %H:%M'))
         
-        repliesAfter = self.frame.after(60000, lambda: self.repliesPage(tweet_ID))
+        repliesAfter = self.frame.after(60000, lambda: self.repliesPage(mainPage, tweet_ID))
