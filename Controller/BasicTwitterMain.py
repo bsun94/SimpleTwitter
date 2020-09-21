@@ -27,7 +27,6 @@ class MainController(object):
         
         self.tweet_msg = tweet_msg
         self.username = username
-        # self.repliesPage = repliesPage
         
         self.db = dt.DBHandler()
         self.view = vw.View(frame)
